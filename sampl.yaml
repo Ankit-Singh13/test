@@ -1,0 +1,128 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  EnvironmentName:
+    Default: STAGING
+    Description: Provide the environment where the stack needs to be deployed
+    Type: String
+
+  BrokerName:
+    Type : String
+    Description: This parameter defines the BrokerName.
+    Default: STAGING-RABBITMQ
+  
+  VpcId:
+    Default: /STAGING/VPC/ID
+    Description: This parameter defines the VPC ID.
+    Type: AWS::SSM::Parameter::Value<String>
+
+  DeploymentMode:
+    Type : String
+    Description: This parameter defines the DeploymentMode.
+    Default: CLUSTER_MULTI_AZ
+  
+  EngineType:
+    Type : String
+    Description: This parameter defines the EngineType.
+    Default: RABBITMQ
+  
+  EngineVersion:
+    Type : String
+    Description: This parameter defines the EngineVersion.
+    Default: 3.10.10
+  
+  HostInstanceType:
+    Type : String
+    Description: This parameter defines the HostInstanceType.
+    Default: mq.m5.large
+  
+  Username:
+    Type : AWS::SSM::Parameter::Value<String>
+    Description: This parameter defines the Username.
+    Default: /STAGING/AMAZONMQ/USERNAME
+
+  DatabasePrivateSubnet1Id:
+    Default: /STAGING/PRIVATESUBNET4/ID
+    Description: This parameter defines the Private Subnet 3 id.
+    Type: AWS::SSM::Parameter::Value<String>
+  
+  EnvironmentName:
+    Default: STAGING
+    Description: Provide the environment where the stack needs to be deployed.
+    Type: String
+
+  # Fetch the Private Subnet 4 ID from the SSM Parameter Store
+  DatabasePrivateSubnet2Id:
+    Default: /STAGING/PRIVATESUBNET4/ID
+    Description: This parameter defines the Private Subnet 4 id
+    Type: AWS::SSM::Parameter::Value<String>
+
+
+  
+    
+
+Resources:
+  AmazonMQPassword:
+    Type: AWS::SSM::Parameter
+    Properties: 
+      Name: /STAGING/AMAZONMQ/PASSWORD
+      Type: String
+      Value: !Join ['a', ['test', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
+  AmazonMQBrokerLarge:
+    Type: AWS::AmazonMQ::Broker
+    Properties: 
+      AutoMinorVersionUpgrade: true
+      BrokerName: !Ref BrokerName
+      DeploymentMode: !Ref DeploymentMode
+      EngineType: !Ref EngineType
+      EngineVersion: !Ref EngineVersion
+      HostInstanceType: !Ref HostInstanceType
+      PubliclyAccessible: false
+      SecurityGroups:
+        - !Ref  RabbitMQBrokerSecurityGroup
+      SubnetIds: 
+          - !Ref DatabasePrivateSubnet1Id
+          - !Ref DatabasePrivateSubnet2Id
+      Users: 
+        - Username: !Ref Username
+          Password: !Join ['a', ['test', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
+      
+
+  RabbitMQBrokerSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: "Sec group for RabbitMQ Broker "      
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 5672
+            ToPort: 5672
+            CidrIp: 10.0.0.0/24
+        VpcId: !Ref VpcId
+
+
+
+  RabbitMQBrokerSecurityGroupOutput:
+      Type: AWS::SSM::Parameter
+      Properties: 
+        Description: Create an  RabbitMQ Broker Security Group ID
+        Name: !Sub "/${EnvironmentName}/RabbitMQ/SECURITYGROUP/ID"
+        Type: String
+        Value: !Ref  RabbitMQBrokerSecurityGroup      
+
+  
+  AmazonMQBrokerLargeOutput:
+      Type: AWS::SSM::Parameter
+      Properties: 
+        #Type: String
+        Description: Create an endpoint ssm
+        Name: !Sub "/${EnvironmentName}/RABBITMQ/ENDPOINT"      
+        Value: Fn::GetAtt AmazonMQBrokerLarge.AmqpEndpoints
+    
+
+  AmazonMQBrokerARNOutput:
+    Type: AWS::SSM::Parameter
+    Properties: 
+      Type: String 
+      Description: Create an endpoint ssm
+      Name: !Sub "/${EnvironmentName}/RABBITMQ/ARN"      
+      Value: !GetAtt AmazonMQBrokerLarge.Arn
+    
